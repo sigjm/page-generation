@@ -19,6 +19,7 @@ from .dto import (
     GenerationMetadataDto,
     GeneratedSectionMetadataDto,
     GeneratedPhotoMetadataDto,
+    PhotoGenerationFailureDto,
     ProductProfileDto,
     ApprovedDraftDto,
     UserHintsDto,
@@ -214,6 +215,13 @@ class DetailPagePipeline:
         emit("VERIFYING", 65)
         source_images = ((source_image, source_mime_type),) + additional_source_images
         photo_set = self._validated_photo_set(photo_set, source_images)
+        photo_generation_failures = [
+            PhotoGenerationFailureDto(
+                photo_id=failure.photo_id,
+                reason=failure.reason,
+            )
+            for failure in photo_set.photo_generation_failures
+        ]
         emit("RENDERING", 75)
         generated_image = self.renderer.render(
             source_image=source_image,
@@ -328,6 +336,7 @@ class DetailPagePipeline:
             ),
             generated_sections=section_metadata,
             generated_photos=photo_metadata,
+            photo_generation_failures=photo_generation_failures,
             react_document=react_document,
             product_id=product_id,
         )
@@ -381,6 +390,7 @@ class DetailPagePipeline:
                     )
                     for photo, asset in zip(sorted_photos, photo_assets, strict=True)
                 ],
+                "photo_generation_failures": photo_generation_failures,
                 "react_document": react_document,
             },
         )
@@ -556,6 +566,7 @@ class DetailPagePipeline:
                 image_base64=preview_image_base64,
             ),
             preview_photos=[],
+            photo_generation_failures=[],
             react_document=react_document,
         )
         return DraftPipelineResult(
@@ -703,6 +714,7 @@ class DetailPagePipeline:
                         record.image.photos, key=lambda item: item.order
                     )
                 ],
+                "photo_generation_failures": record.request.detail_page.photo_generation_failures,
                 "react_document": react_document,
             },
         )
@@ -731,7 +743,10 @@ class DetailPagePipeline:
                     if photo.fidelity_status == status
                     else replace(photo, fidelity_status=status)
                 )
-        return ProductPhotoSet(photos=tuple(verified))
+        return ProductPhotoSet(
+            photos=tuple(verified),
+            photo_generation_failures=photo_set.photo_generation_failures,
+        )
 
     @staticmethod
     def _fe_product(profile: ProductProfileDto) -> AiFeProductSummaryDto:

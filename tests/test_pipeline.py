@@ -10,6 +10,7 @@ from detail_page_ai.dto import (
 from detail_page_ai.models import (
     GeneratedImage,
     GeneratedSection,
+    PhotoGenerationFailure,
     ProductPhoto,
     ProductPhotoSet,
 )
@@ -448,6 +449,41 @@ def test_pipeline_generates_product_photo_set_before_detail_page_rendering():
     assert renderer.photo_sets[0].photos[0].photo_id == "hero"
     assert result.fe_result.detail_page.photos[0].photo_id == "hero"
     assert backend.last_request.detail_page.photos[0].photo_id == "hero"
+
+
+def test_pipeline_delivers_photo_generation_failures_to_fe_be_and_recovery():
+    renderer = FakeRenderer()
+    backend = FakeBackend(fail=False)
+
+    class PhotoGenerator:
+        def generate(self, **kwargs):
+            return ProductPhotoSet(
+                photo_generation_failures=(
+                    PhotoGenerationFailure(
+                        photo_id="lifestyle",
+                        reason="생성하지 못했습니다",
+                    ),
+                )
+            )
+
+    pipeline = DetailPagePipeline(
+        analyzer=FakeAnalyzer(),
+        photo_generator=PhotoGenerator(),
+        renderer=renderer,
+        backend=backend,
+        id_factory=lambda: "generation-photo-failure",
+    )
+
+    result = pipeline.run("job-1", "request-1", VALID_PNG, "image/png")
+
+    assert result.fe_result.detail_page.photo_generation_failures[0].photo_id == "lifestyle"
+    assert (
+        result.fe_result.detail_page.photo_generation_failures[0].reason
+        == "생성하지 못했습니다"
+    )
+    assert backend.last_request.detail_page.photo_generation_failures[0].photo_id == "lifestyle"
+    recovered = pipeline.recover_fe_result("generation-photo-failure")
+    assert recovered.detail_page.photo_generation_failures[0].photo_id == "lifestyle"
 
 
 def test_pipeline_maps_photo_provenance_to_fe_and_be():

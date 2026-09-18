@@ -68,6 +68,7 @@ def test_create_draft_only_analyzes_and_returns_structured_editable_json():
     assert "html" not in result.fe_draft.model_dump()
     assert result.fe_draft.draft.product_name == "나전 보관함"
     assert result.fe_draft.preview.source_sha256
+    assert result.fe_draft.photo_generation_failures == []
     assert result.preview_photo_set == ProductPhotoSet()
 
 
