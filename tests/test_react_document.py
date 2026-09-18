@@ -9,7 +9,11 @@ from detail_page_ai.dto import (
     PageBlockItemDto,
 )
 from detail_page_ai.react_document import ReactDetailPageDocumentDto
-from detail_page_ai.react_document_builder import build_react_document_from_draft
+from detail_page_ai.react_document_builder import (
+    build_react_document_from_draft,
+    resolve_page_block_photos,
+    resolve_page_plan_photos,
+)
 
 
 def _walk(node):
@@ -357,3 +361,106 @@ def test_react_document_limits_depth_and_duplicate_node_ids():
 
     with pytest.raises(ValidationError):
         ReactDetailPageDocumentDto.model_validate(duplicate)
+
+
+def test_resolve_page_plan_photos_replaces_unavailable_photo_with_default(caplog):
+    plan = [
+        PageBlockDto(
+            section_id="hero",
+            block_type="hero",
+            photo_id="hero",
+        ),
+        PageBlockDto(
+            section_id="scale_ref",
+            block_type="scale_reference",
+            photo_id="scale",
+        ),
+    ]
+
+    with caplog.at_level(logging.WARNING, logger="detail_page_ai.react_document_builder"):
+        resolved = resolve_page_plan_photos(
+            plan,
+            available_photo_ids={"hero", "detail", "lifestyle"},
+            log_warnings=True,
+        )
+
+    assert resolved[0].photo_id == "hero"
+    assert resolved[1].photo_id == "hero"
+    assert "photo_id 'scale' requested by scale_reference block is unavailable; using default photo_id 'hero'" in caplog.text
+
+
+def test_resolve_page_plan_photos_filters_gallery_unavailable_photos(caplog):
+    plan = [
+        PageBlockDto(
+            section_id="gallery",
+            block_type="gallery",
+            photo_ids=["detail", "scale", "detail-02"],
+        ),
+    ]
+
+    with caplog.at_level(logging.WARNING, logger="detail_page_ai.react_document_builder"):
+        resolved = resolve_page_plan_photos(
+            plan,
+            available_photo_ids={"hero", "detail", "detail-02"},
+            log_warnings=True,
+        )
+
+    assert resolved[0].photo_ids == ["detail", "detail-02"]
+    assert "photo_id 'scale' requested by gallery block is unavailable" in caplog.text
+
+
+def test_resolve_page_plan_photos_clears_photo_when_default_also_unavailable(caplog):
+    plan = [
+        PageBlockDto(
+            section_id="scale_ref",
+            block_type="scale_reference",
+            photo_id="scale",
+        ),
+    ]
+
+    with caplog.at_level(logging.WARNING, logger="detail_page_ai.react_document_builder"):
+        resolved = resolve_page_plan_photos(
+            plan,
+            available_photo_ids={"detail"},
+            log_warnings=True,
+        )
+
+    assert resolved[0].photo_id is None
+    assert "photo_id 'scale' requested by scale_reference block is unavailable and default photo_id 'hero' is unavailable" in caplog.text
+
+
+def test_build_react_document_does_not_mutate_draft_page_plan(caplog):
+    draft = ApprovedDraftDto(
+        product_name="초충도 부채 세트",
+        summary="전통 공예 부채입니다.",
+        hero_headline="부채의 멋",
+        hero_description="한지와 대나무 살이 어우러진 부채입니다.",
+        page_plan=[
+            PageBlockDto(
+                section_id="scale_reference",
+                block_type="scale_reference",
+                title="부채와 파우치의 비율",
+                photo_id="scale",
+            ),
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING, logger="detail_page_ai.react_document_builder"):
+        doc = build_react_document_from_draft(
+            draft, available_photo_ids={"hero", "detail"}
+        )
+
+    # The caller's draft.page_plan must NOT be mutated in-place
+    assert draft.page_plan[0].photo_id == "scale"
+    # The react document should reference resolved 'hero'
+    img_nodes = [
+        node
+        for root in doc.root
+        for node in _walk(root.model_dump())
+        if node.get("type") == "element" and node.get("tag") == "img"
+    ]
+    assert len(img_nodes) == 1
+    assert img_nodes[0]["props"]["image_id"] == "hero"
+    # Warning was logged
+    assert "photo_id 'scale' requested by scale_reference block is unavailable; using default photo_id 'hero'" in caplog.text
+

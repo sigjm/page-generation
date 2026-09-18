@@ -38,6 +38,7 @@ from .persistence import DeliveryOutbox, LeaseOwnershipError, MemoryDeliveryOutb
 from .react_document_builder import (
     build_react_document_from_draft,
     collect_referenced_photo_ids,
+    resolve_page_plan_photos,
 )
 from .source_photos import ProductFidelityValidator
 from .validation import (
@@ -306,9 +307,14 @@ class DetailPagePipeline:
             )
             for photo, asset in zip(sorted_photos, photo_assets, strict=True)
         ]
+        available_photo_ids = {photo.photo_id for photo in sorted_photos}
+        resolved_plan = resolve_page_plan_photos(
+            approved_draft.page_plan, available_photo_ids
+        )
+        profile = profile.model_copy(update={"page_plan": resolved_plan})
         react_document = build_react_document_from_draft(
             approved_draft,
-            available_photo_ids={photo.photo_id for photo in sorted_photos},
+            available_photo_ids=available_photo_ids,
         )
         referenced_photo_ids = collect_referenced_photo_ids(react_document)
         unused_generated_photo_ids = list(
