@@ -1,7 +1,11 @@
 from pathlib import Path
 
 from detail_page_ai.assets import LocalFileAssetStore
-from detail_page_ai.backend_client import BackendDeliveryError, BackendProductClient
+from detail_page_ai.backend_client import (
+    DEFAULT_BACKEND_CALLBACK_PATH,
+    BackendDeliveryError,
+    BackendProductClient,
+)
 from detail_page_ai.dto import GenerationMetadataDto
 from detail_page_ai.html_renderer import HtmlDetailPageRenderer
 from detail_page_ai.persistence import SQLiteDeliveryOutbox, SQLiteJobRepository
@@ -141,6 +145,11 @@ def build_service(settings) -> DetailPageJobService:
             url=settings.backend_url,
             token=settings.backend_auth_token,
             timeout=settings.backend_timeout_seconds,
+            callback_path=getattr(
+                settings,
+                "backend_callback_path",
+                DEFAULT_BACKEND_CALLBACK_PATH,
+            ),
         )
         if settings.backend_url
         else _UnconfiguredBackend()
