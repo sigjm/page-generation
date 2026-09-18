@@ -136,12 +136,32 @@ EKS 경로에서는 인프라팀이 S3에서 위 모델 디렉터리로 가중�
 
 #### 인프라팀 동기화 대상
 
-| 모델 | 저장소·고정 커밋 | 용도 | 크기 |
-| --- | --- | --- | --- |
-| 텍스트·비전 | `cyankiwi/Qwen3.8-27B-AWQ-INT4` (`6e134bae811fb5adac50ee042ae5f029ac6779aa`) | SGLang 텍스트 서버 | 가중치 19.6 GiB |
-| 이미지 확산 | `circulus/FLUX.2-klein-9B-bnb-4bit` (`58c2804f31af12c8888504b96250010c50b55e44`) | SGLang 확산 서버 | 약 10.2 GiB |
+| 모델 | 저장소·고정 커밋 | 용도 | 크기 | PVC 배치 경로 |
+| --- | --- | --- | --- | --- |
+| 텍스트·비전 | `cyankiwi/Qwen3.8-27B-AWQ-INT4` (`6e134bae811fb5adac50ee042ae5f029ac6779aa`) | SGLang 텍스트 서버 | 가중치 19.6 GiB | `models/text/<model>/` (`TEXT_MODEL_PATH`) |
+| 이미지 확산 | `circulus/FLUX.2-klein-9B-bnb-4bit` (`58c2804f31af12c8888504b96250010c50b55e44`) | SGLang 확산 서버 | 약 10.2 GiB | `models/image/<model>/` (`IMAGE_MODEL_PATH`) |
+| **누끼(rembg)** | **`danielgatis/rembg` 릴리스 `v0.0.0` 의 `BiRefNet-general-epoch_244.onnx`** | **판매 사진 배경 제거** | **973 MB** | **`models/u2net/birefnet-general.onnx`** |
 
-S3 버킷은 `jangin-{env}-s3-models`를 사용하고, 인프라팀이 S3 Gateway Endpoint를 통해 PVC로 동기화합니다. 각 모델은 별도 디렉터리에 **압축하지 않고 펼친 형태**로 저장해야 하며, `config.json`과 가중치 파일(`*.safetensors`)이 해당 디렉터리 안에 직접 있어야 합니다. 위 예시의 `TEXT_MODEL_PATH`와 `IMAGE_MODEL_PATH`에 PVC 안의 실제 절대 경로를 주입해 주세요.
+S3 버킷은 `jangin-{env}-s3-models`를 사용하고, 인프라팀이 S3 Gateway Endpoint를 통해 PVC로 동기화합니다. 텍스트·이미지 모델은 별도 디렉터리에 **압축하지 않고 펼친 형태**로 저장해야 하며, `config.json`과 가중치 파일(`*.safetensors`)이 해당 디렉터리 안에 직접 있어야 합니다. 위 예시의 `TEXT_MODEL_PATH`와 `IMAGE_MODEL_PATH`에 PVC 안의 실제 절대 경로를 주입해 주세요.
+
+##### 누끼 모델을 동기화 대상에 넣어 주셔야 하는 이유
+
+rembg 모델은 디렉터리가 아니라 **파일 하나**이고, 파일명이 `birefnet-general.onnx` 여야 합니다. 경로는 `U2NET_HOME` 환경변수가 가리키는 곳으로, 이미지 기본값이 `/var/lib/detail-page-ai/models/u2net` 입니다(별도 주입 불필요).
+
+**이 파일이 없으면 우리 컨테이너가 첫 렌더 요청에서 `github.com` 으로 973 MB를 직접 내려받습니다.** 2026-09-18 사내 Ubuntu 서버 컨테이너 연동 테스트에서 실제로 관측했습니다.
+
+```
+Downloading data from 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/
+BiRefNet-general-epoch_244.onnx' to file
+'/var/lib/detail-page-ai/models/u2net/birefnet-general.onnx'
+```
+
+동기화 대상에 넣어 주시면 두 가지가 해결됩니다.
+
+- **런타임 egress가 필요 없습니다.** 넣지 않으시면 노드에서 `github.com` 으로 나가는 경로를 열어 두셔야 합니다.
+- **첫 요청이 다운로드를 기다리지 않습니다.** 사내 LAN에서 약 17초였고, 실패하면 그 요청이 실패합니다.
+
+S3에 올리실 때는 릴리스 자산 파일명(`BiRefNet-general-epoch_244.onnx`)이 아니라 **`birefnet-general.onnx` 로 바꿔서** 위 경로에 두셔야 합니다. rembg가 그 이름으로 찾습니다.
 
 모델 서버는 텍스트·비전과 이미지 확산을 **각각 독립적으로** 다음과 같이 판정합니다.
 
