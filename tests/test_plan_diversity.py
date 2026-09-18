@@ -75,6 +75,36 @@ def test_compute_catalog_baseline_deterministic() -> None:
     assert 0.50 <= base1["mean_jaccard"] <= 0.80
     assert base1["sample_size"] == 6
     assert base1["iterations"] == 100
+    assert "mean_identical_pairs" in base1
+    assert "p95_identical_pairs" in base1
+
+
+def test_compute_catalog_baseline_uses_replacement_for_large_batch() -> None:
+    baseline = cpd.compute_catalog_baseline(sample_size=60, iterations=100, seed=42)
+
+    assert baseline["sample_size"] == 60
+    assert baseline["catalog_archetypes_count"] == 25
+    assert baseline["mean_identical_pairs"] >= 0
+    assert baseline["p95_identical_pairs"] >= baseline["mean_identical_pairs"]
+
+
+def test_compute_catalog_baseline_candidate_pool_size_overrides_catalog_pool() -> None:
+    baseline = cpd.compute_catalog_baseline(
+        sample_size=20,
+        candidate_pool_size=3,
+        iterations=100,
+        seed=42,
+    )
+
+    assert baseline["sample_size"] == 20
+    assert baseline["catalog_archetypes_count"] == 3
+
+
+def test_identical_pair_p95_increases_with_batch_size() -> None:
+    small = cpd.compute_catalog_baseline(sample_size=6, iterations=500, seed=42)
+    large = cpd.compute_catalog_baseline(sample_size=20, iterations=500, seed=42)
+
+    assert large["p95_identical_pairs"] > small["p95_identical_pairs"]
 
 
 def test_compute_catalog_baseline_fallback(tmp_path: Path) -> None:
@@ -82,6 +112,8 @@ def test_compute_catalog_baseline_fallback(tmp_path: Path) -> None:
     fallback = cpd.compute_catalog_baseline(catalog_path=non_existent, sample_size=6)
     assert fallback["source"] == "fallback_default"
     assert fallback["mean_jaccard"] == 0.640
+    assert "mean_identical_pairs" in fallback
+    assert "p95_identical_pairs" in fallback
 
 
 def test_compute_common_blocks_empty() -> None:
@@ -294,14 +326,53 @@ def test_evaluate_plan_diversity_default_allows_one_identical_pair() -> None:
 
 def test_evaluate_plan_diversity_uses_catalog_baseline() -> None:
     records = [
-        {"case_id": "c1", "blocks": ["hero", "a", "closing"]},
-        {"case_id": "c2", "blocks": ["hero", "b", "closing"]},
+        {"case_id": "c1", "category": "test", "blocks": ["hero", "a", "closing"], "block_count": 3},
+        {"case_id": "c2", "category": "test", "blocks": ["hero", "b", "closing"], "block_count": 3},
     ]
     result = cpd.evaluate_plan_diversity(records, max_jaccard_delta=0.10)
     baseline_mean = result["catalog_baseline"]["mean_jaccard"]
     expected_threshold = round(baseline_mean + 0.10, 4)
     assert result["thresholds"]["max_avg_jaccard"] == expected_threshold
     assert result["gates"]["avg_jaccard"]["threshold"] == expected_threshold
+    assert result["thresholds"]["max_identical_pairs"] == result["catalog_baseline"]["p95_identical_pairs"]
+    assert result["thresholds"]["is_dynamic_identical_pairs"] is True
+
+
+def test_evaluate_plan_diversity_accepts_explicit_identical_pair_override() -> None:
+    records = [
+        {"case_id": "c1", "blocks": ["hero", "a", "closing"]},
+        {"case_id": "c2", "blocks": ["hero", "b", "closing"]},
+    ]
+    result = cpd.evaluate_plan_diversity(records, max_identical_pairs=0)
+
+    assert result["thresholds"]["max_identical_pairs"] == 0
+    assert result["thresholds"]["is_dynamic_identical_pairs"] is False
+
+
+def test_print_report_shows_expected_and_observed_identical_pairs(capsys: pytest.CaptureFixture[str]) -> None:
+    records = [
+        {"case_id": "c1", "category": "test", "blocks": ["hero", "a", "closing"], "block_count": 3},
+        {"case_id": "c2", "category": "test", "blocks": ["hero", "b", "closing"], "block_count": 3},
+    ]
+    result = cpd.evaluate_plan_diversity(records, simulation_iterations=20)
+
+    cpd.print_report(result)
+    output = capsys.readouterr().out
+
+    assert "기대치" in output
+    assert "관측" in output
+
+
+def test_parse_args_candidate_pool_size_defaults_to_full_catalog_and_accepts_override(tmp_path: Path) -> None:
+    defaults = cpd.parse_args([str(tmp_path)])
+    overridden = cpd.parse_args(
+        [str(tmp_path), "--candidate-pool-size", "15", "--max-identical-pairs", "1"]
+    )
+
+    assert defaults.candidate_pool_size is None
+    assert defaults.max_identical_pairs is None
+    assert overridden.candidate_pool_size == 15
+    assert overridden.max_identical_pairs == 1
 
 
 # ==============================================================================
