@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import re
+from collections.abc import Collection
 
 from .dto import (
     ApprovedDraftDto,
@@ -51,6 +53,8 @@ _CARD_COLORS = {
     "full-bleed": ("#E6EEEF", "#222222"),
     "compact": ("#F0F0F0", "#222222"),
 }
+
+logger = logging.getLogger(__name__)
 
 
 def _slug(value: str) -> str:
@@ -207,12 +211,50 @@ def _section_style(variant: str) -> ReactStylePropsDto:
     )
 
 
-def _photo_ids(block: PageBlockDto) -> list[str]:
-    candidates = [*( [block.photo_id] if block.photo_id else []), *block.photo_ids]
-    if not candidates:
-        default_photo_id = _DEFAULT_PHOTO_BY_BLOCK.get(block.block_type)
-        if default_photo_id:
+def _photo_ids(
+    block: PageBlockDto,
+    available_photo_ids: Collection[str] | None = None,
+) -> list[str]:
+    candidates = ([block.photo_id] if block.photo_id else []) + list(block.photo_ids)
+    default_photo_id = _DEFAULT_PHOTO_BY_BLOCK.get(block.block_type)
+    if available_photo_ids is None:
+        if not candidates and default_photo_id:
             candidates = [default_photo_id]
+    else:
+        available = set(available_photo_ids)
+        if not candidates:
+            if default_photo_id and default_photo_id in available:
+                candidates = [default_photo_id]
+            elif default_photo_id:
+                logger.warning(
+                    "Default photo_id %r for %s block is unavailable; omitting image",
+                    default_photo_id,
+                    block.block_type,
+                )
+        else:
+            resolved: list[str] = []
+            for requested_photo_id in candidates:
+                if requested_photo_id in available:
+                    resolved.append(requested_photo_id)
+                    continue
+                if default_photo_id and default_photo_id in available:
+                    logger.warning(
+                        "photo_id %r requested by %s block is unavailable; "
+                        "using default photo_id %r",
+                        requested_photo_id,
+                        block.block_type,
+                        default_photo_id,
+                    )
+                    resolved.append(default_photo_id)
+                else:
+                    logger.warning(
+                        "photo_id %r requested by %s block is unavailable and "
+                        "default photo_id %r is unavailable; omitting image",
+                        requested_photo_id,
+                        block.block_type,
+                        default_photo_id,
+                    )
+            candidates = resolved
     deduplicated: list[str] = []
     for photo_id in candidates:
         if photo_id and photo_id not in deduplicated:
@@ -222,10 +264,16 @@ def _photo_ids(block: PageBlockDto) -> list[str]:
 
 
 def _image_figures(
-    *, block_id: str, block: PageBlockDto, product_name: str
+    *,
+    block_id: str,
+    block: PageBlockDto,
+    product_name: str,
+    available_photo_ids: Collection[str] | None = None,
 ) -> list[ReactElementNodeDto]:
     figures: list[ReactElementNodeDto] = []
-    for index, photo_id in enumerate(_photo_ids(block), start=1):
+    for index, photo_id in enumerate(
+        _photo_ids(block, available_photo_ids), start=1
+    ):
         alt_label = block.title or block.block_type.replace("_", " ")
         image = _element(
             block_id=block_id,
@@ -258,9 +306,18 @@ def _image_figures(
 
 
 def _media_group(
-    *, block_id: str, block: PageBlockDto, product_name: str
+    *,
+    block_id: str,
+    block: PageBlockDto,
+    product_name: str,
+    available_photo_ids: Collection[str] | None = None,
 ) -> ReactElementNodeDto | None:
-    figures = _image_figures(block_id=block_id, block=block, product_name=product_name)
+    figures = _image_figures(
+        block_id=block_id,
+        block=block,
+        product_name=product_name,
+        available_photo_ids=available_photo_ids,
+    )
     if not figures:
         return None
 
@@ -537,7 +594,12 @@ def _fallback_blocks(draft: ApprovedDraftDto) -> list[PageBlockDto]:
 
 
 def _build_block(
-    *, block: PageBlockDto, index: int, product_name: str, draft: ApprovedDraftDto
+    *,
+    block: PageBlockDto,
+    index: int,
+    product_name: str,
+    draft: ApprovedDraftDto,
+    available_photo_ids: Collection[str] | None = None,
 ) -> ReactElementNodeDto:
     slug = _slug(block.section_id) or "section"
     block_id = f"section-{index:02d}-{slug}"[:70]
@@ -565,7 +627,10 @@ def _build_block(
 
     if block.block_type in _IMAGE_BLOCK_TYPES:
         media_group = _media_group(
-            block_id=block_id, block=block, product_name=product_name
+            block_id=block_id,
+            block=block,
+            product_name=product_name,
+            available_photo_ids=available_photo_ids,
         )
         if media_group:
             if block.block_type == "detail_split":
@@ -588,12 +653,15 @@ def _build_block(
 
 def build_react_document_from_draft(
     draft: ApprovedDraftDto,
+    available_photo_ids: Collection[str] | None = None,
 ) -> ReactDetailPageDocumentDto:
     """Convert a validated approved draft into the FE's restricted JSON AST.
 
     The model never writes this AST directly.  It is assembled from the
     already validated page-plan DTO, so unknown tags, raw HTML, executable
-    props, and unverified image URLs cannot leak into the response.
+    props, and unverified image URLs cannot leak into the response.  When
+    ``available_photo_ids`` is provided, image references are resolved against
+    the final photo set before nodes are emitted.
     """
 
     blocks = draft.page_plan or _fallback_blocks(draft)
@@ -603,10 +671,31 @@ def build_react_document_from_draft(
             index=index,
             product_name=draft.product_name,
             draft=draft,
+            available_photo_ids=available_photo_ids,
         )
         for index, block in enumerate(blocks[:14], start=1)
     ]
     return ReactDetailPageDocumentDto(root=root)
 
 
-__all__ = ["build_react_document_from_draft"]
+def collect_referenced_photo_ids(
+    document: ReactDetailPageDocumentDto,
+) -> set[str]:
+    """Return the image IDs actually present in a validated React document."""
+
+    referenced: set[str] = set()
+
+    def visit(node: ReactElementNodeDto | ReactTextNodeDto) -> None:
+        if isinstance(node, ReactTextNodeDto):
+            return
+        if node.tag == "img" and node.props.image_id:
+            referenced.add(node.props.image_id)
+        for child in node.children:
+            visit(child)
+
+    for root_node in document.root:
+        visit(root_node)
+    return referenced
+
+
+__all__ = ["build_react_document_from_draft", "collect_referenced_photo_ids"]

@@ -35,7 +35,10 @@ from .ports import (
     SourceAssetStore,
 )
 from .persistence import DeliveryOutbox, LeaseOwnershipError, MemoryDeliveryOutbox
-from .react_document_builder import build_react_document_from_draft
+from .react_document_builder import (
+    build_react_document_from_draft,
+    collect_referenced_photo_ids,
+)
 from .source_photos import ProductFidelityValidator
 from .validation import (
     ensure_editorial_page_plan,
@@ -305,6 +308,16 @@ class DetailPagePipeline:
         ]
         react_document = build_react_document_from_draft(
             approved_draft,
+            available_photo_ids={photo.photo_id for photo in sorted_photos},
+        )
+        referenced_photo_ids = collect_referenced_photo_ids(react_document)
+        unused_generated_photo_ids = list(
+            dict.fromkeys(
+                photo.photo_id
+                for photo in sorted_photos
+                if photo.product_generated
+                and photo.photo_id not in referenced_photo_ids
+            )
         )
         persist_request_model = (
             AiToBePersistRequestDto
@@ -337,6 +350,7 @@ class DetailPagePipeline:
             generated_sections=section_metadata,
             generated_photos=photo_metadata,
             photo_generation_failures=photo_generation_failures,
+            unused_generated_photo_ids=unused_generated_photo_ids,
             react_document=react_document,
             product_id=product_id,
         )
@@ -391,6 +405,7 @@ class DetailPagePipeline:
                     for photo, asset in zip(sorted_photos, photo_assets, strict=True)
                 ],
                 "photo_generation_failures": photo_generation_failures,
+                "unused_generated_photo_ids": unused_generated_photo_ids,
                 "react_document": react_document,
             },
         )
@@ -567,6 +582,7 @@ class DetailPagePipeline:
             ),
             preview_photos=[],
             photo_generation_failures=[],
+            unused_generated_photo_ids=[],
             react_document=react_document,
         )
         return DraftPipelineResult(
@@ -715,6 +731,7 @@ class DetailPagePipeline:
                     )
                 ],
                 "photo_generation_failures": record.request.detail_page.photo_generation_failures,
+                "unused_generated_photo_ids": record.request.detail_page.unused_generated_photo_ids,
                 "react_document": react_document,
             },
         )

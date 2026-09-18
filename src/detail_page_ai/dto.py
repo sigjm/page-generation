@@ -340,6 +340,7 @@ class FeDetailPageAssetDto(BaseModel):
     photo_generation_failures: list[PhotoGenerationFailureDto] = Field(
         default_factory=list
     )
+    unused_generated_photo_ids: list[str] = Field(default_factory=list)
     react_document: ReactDetailPageDocumentDto | None = None
 
 
@@ -383,6 +384,7 @@ class AiFeDraftResultDto(BaseModel):
     photo_generation_failures: list[PhotoGenerationFailureDto] = Field(
         default_factory=list
     )
+    unused_generated_photo_ids: list[str] = Field(default_factory=list)
     react_document: ReactDetailPageDocumentDto | None = None
 
 
@@ -503,6 +505,7 @@ class GeneratedAssetMetadataDto(BaseModel):
     photo_generation_failures: list[PhotoGenerationFailureDto] = Field(
         default_factory=list
     )
+    unused_generated_photo_ids: list[str] = Field(default_factory=list)
     react_document: ReactDetailPageDocumentDto | None = Field(
         default=None, alias="reactDocument"
     )
@@ -554,6 +557,7 @@ class AiBeProductPersistRequest(BaseModel):
         generated_sections: list[GeneratedSectionMetadataDto] | None = None,
         generated_photos: list[GeneratedPhotoMetadataDto] | None = None,
         photo_generation_failures: list[PhotoGenerationFailureDto] | None = None,
+        unused_generated_photo_ids: list[str] | None = None,
         react_document: ReactDetailPageDocumentDto | None = None,
         product_id: str | None = None,
     ) -> Self:
@@ -584,6 +588,7 @@ class AiBeProductPersistRequest(BaseModel):
                 sections=generated_sections or [],
                 photos=generated_photos or [],
                 photo_generation_failures=photo_generation_failures or [],
+                unused_generated_photo_ids=unused_generated_photo_ids or [],
                 react_document=react_document,
             ),
             generation=generation_metadata,

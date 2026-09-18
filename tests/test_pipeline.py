@@ -143,6 +143,117 @@ def test_pipeline_delivers_react_document_to_fe_and_be():
     assert backend.last_request.detail_page.react_document == document
 
 
+def _generated_photo(photo_id: str, order: int) -> ProductPhoto:
+    return ProductPhoto(
+        photo_id=photo_id,
+        order=order,
+        label=f"AI generated {photo_id}",
+        data=b"generated-photo",
+        mime_type="image/png",
+        asset_mode="generated_scene" if photo_id == "lifestyle" else "generated_view",
+        source_sha256=hashlib.sha256(VALID_PNG).hexdigest(),
+        background_generated=True,
+        product_generated=True,
+        fidelity_status="GENERATED",
+    )
+
+
+def test_pipeline_reports_generated_photos_not_referenced_by_react_document():
+    renderer = FakeRenderer()
+    backend = FakeBackend(fail=False)
+
+    class PhotoGenerator:
+        def generate(self, **kwargs):
+            return ProductPhotoSet(
+                photos=(
+                    _generated_photo("lifestyle", 4),
+                    _generated_photo("detail-02", 5),
+                )
+            )
+
+    pipeline = DetailPagePipeline(
+        analyzer=FakeAnalyzer(),
+        photo_generator=PhotoGenerator(),
+        renderer=renderer,
+        backend=backend,
+        id_factory=lambda: "generation-unused-photo",
+    )
+    profile = ProductProfileDto.minimal("desk lamp").model_copy(
+        update={
+            "page_plan": [
+                PageBlockDto(
+                    section_id="usage",
+                    block_type="usage_scene",
+                    photo_id="lifestyle",
+                )
+            ]
+        }
+    )
+
+    result = pipeline.run(
+        "job-unused-photo",
+        "request-unused-photo",
+        VALID_PNG,
+        "image/png",
+        profile_override=profile,
+    )
+
+    assert result.fe_result.detail_page.unused_generated_photo_ids == ["detail-02"]
+    assert backend.last_request.detail_page.unused_generated_photo_ids == ["detail-02"]
+    assert pipeline.recover_fe_result(
+        "generation-unused-photo"
+    ).detail_page.unused_generated_photo_ids == ["detail-02"]
+
+
+def test_pipeline_reports_no_unused_generated_photos_when_all_are_referenced():
+    renderer = FakeRenderer()
+    backend = FakeBackend(fail=False)
+
+    class PhotoGenerator:
+        def generate(self, **kwargs):
+            return ProductPhotoSet(
+                photos=(
+                    _generated_photo("lifestyle", 4),
+                    _generated_photo("detail-02", 5),
+                )
+            )
+
+    pipeline = DetailPagePipeline(
+        analyzer=FakeAnalyzer(),
+        photo_generator=PhotoGenerator(),
+        renderer=renderer,
+        backend=backend,
+        id_factory=lambda: "generation-all-photos",
+    )
+    profile = ProductProfileDto.minimal("desk lamp").model_copy(
+        update={
+            "page_plan": [
+                PageBlockDto(
+                    section_id="usage",
+                    block_type="usage_scene",
+                    photo_id="lifestyle",
+                ),
+                PageBlockDto(
+                    section_id="detail",
+                    block_type="detail_split",
+                    photo_id="detail-02",
+                ),
+            ]
+        }
+    )
+
+    result = pipeline.run(
+        "job-all-photos",
+        "request-all-photos",
+        VALID_PNG,
+        "image/png",
+        profile_override=profile,
+    )
+
+    assert result.fe_result.detail_page.unused_generated_photo_ids == []
+    assert backend.last_request.detail_page.unused_generated_photo_ids == []
+
+
 def test_pipeline_completes_missing_required_blocks_in_ai_page_plan():
     pipeline, renderer, _ = make_pipeline(return_parts=True)
 

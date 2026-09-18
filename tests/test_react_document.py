@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from pydantic import ValidationError
 
@@ -77,6 +79,72 @@ def test_builder_emits_react_json_ast_with_image_ids_and_aliases():
         key not in payload
         for key in ("html", "css", "script", "dangerouslySetInnerHTML")
     )
+
+
+def test_builder_falls_back_to_existing_block_default_for_missing_photo_id(caplog):
+    draft = ApprovedDraftDto(
+        product_name="숨의잔",
+        summary="자유 취입으로 완성한 유리 잔입니다.",
+        hero_headline="호흡이 만든 하나의 잔",
+        hero_description="빛과 액체에 따라 다른 표정을 보여 줍니다.",
+        page_plan=[
+            PageBlockDto(
+                section_id="wide",
+                block_type="wide_image",
+                title="넓게 보는 표면",
+                photo_id="wide",
+            )
+        ],
+    )
+
+    with caplog.at_level(
+        logging.WARNING, logger="detail_page_ai.react_document_builder"
+    ):
+        document = build_react_document_from_draft(
+            draft, available_photo_ids={"hero", "detail"}
+        )
+
+    image_ids = [
+        node["props"]["image_id"]
+        for root in document.root
+        for node in _walk(root.model_dump())
+        if node.get("type") == "element" and node.get("tag") == "img"
+    ]
+    assert image_ids == ["hero"]
+    assert "wide" in caplog.text
+    assert "hero" in caplog.text
+
+
+def test_builder_omits_image_when_requested_photo_and_default_are_missing(caplog):
+    draft = ApprovedDraftDto(
+        product_name="숨의잔",
+        summary="자유 취입으로 완성한 유리 잔입니다.",
+        hero_headline="호흡이 만든 하나의 잔",
+        hero_description="빛과 액체에 따라 다른 표정을 보여 줍니다.",
+        page_plan=[
+            PageBlockDto(
+                section_id="wide",
+                block_type="wide_image",
+                title="넓게 보는 표면",
+                photo_id="wide",
+            )
+        ],
+    )
+
+    with caplog.at_level(
+        logging.WARNING, logger="detail_page_ai.react_document_builder"
+    ):
+        document = build_react_document_from_draft(
+            draft, available_photo_ids={"detail"}
+        )
+
+    assert not any(
+        node.get("type") == "element" and node.get("tag") == "img"
+        for root in document.root
+        for node in _walk(root.model_dump())
+    )
+    assert "wide" in caplog.text
+    assert "hero" in caplog.text
 
 
 def test_builder_does_not_emit_reference_labels():
