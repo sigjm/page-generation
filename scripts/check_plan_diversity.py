@@ -7,7 +7,7 @@ length distributions, and positional fixedness.
 
 Criteria are grounded in a Monte Carlo baseline computed from the catalog
 archetypes (assets/references/detail-page-layouts.json):
-  1. Average Jaccard similarity <= catalog_baseline_mean + delta (default: +10.0%p)
+  1. Average Jaccard similarity <= the batch-size baseline P95 + validation padding (default: +1.0%p)
   2. Effective common blocks (excluding mandatory hero & closing) <= 4
   3. Identical set pairs <= 1 (allows incidental birthday-paradox collision for small batches)
 """
@@ -34,7 +34,7 @@ STRUCTURAL_BLOCKS: frozenset[str] = frozenset({"hero", "closing"})
 DEFAULT_SIMULATION_ITERATIONS: int = 2000
 DEFAULT_SIMULATION_SEED: int = 42
 
-# Rationale for max_jaccard_delta = 0.10 (+10.0%p above catalog baseline):
+# Historical rationale for max_jaccard_delta = 0.10 (+10.0%p above catalog baseline):
 #   1. Statistical variance: In sampling 6 distinct archetypes from 25 without replacement,
 #      the 95th percentile is ~71.6% (mean is ~64.1%, std is ~4.5%p; +2σ is ~73.1%).
 #   2. Archetype category collision: With replacement across 25 archetypes, expected similarity
@@ -42,8 +42,14 @@ DEFAULT_SIMULATION_SEED: int = 42
 #   3. Normalization padding: validation.py guarantees minimum craft invariants (notice, info_table),
 #      adding a slight (~1.0%p) upward drift in set overlap.
 #   Total headroom: 7.5%p (variance) + 1.5%p (collisions) + 1.0%p (validation) = 10.0%p.
-#   An observed Jaccard > baseline + 10.0%p indicates true model template collapse.
+# This remains available as an explicit legacy CLI override, but is no longer the default:
+# the default baseline now uses the actual batch-size P95, so variance and replacement
+# collisions are already represented instead of being counted again in a fixed delta.
 DEFAULT_MAX_JACCARD_DELTA: float = 0.10
+
+# The only padding retained by the default P95-derived gate comes from the validation.py
+# craft-invariant adjustment described above.
+DEFAULT_JACCARD_VALIDATION_PADDING: float = 0.01
 
 # Rationale for max_effective_common_blocks = 4:
 #   In the 25 catalog archetypes, notice (24/25), info_table (24/25), detail_split (22/25),
@@ -400,7 +406,7 @@ def evaluate_plan_diversity(
     *,
     catalog_path: Path = CATALOG_PATH,
     candidate_pool_size: int | None = None,
-    max_jaccard_delta: float = DEFAULT_MAX_JACCARD_DELTA,
+    max_jaccard_delta: float | None = None,
     max_effective_common: int = DEFAULT_MAX_EFFECTIVE_COMMON,
     max_identical_pairs: int | None = None,
     simulation_iterations: int = DEFAULT_SIMULATION_ITERATIONS,
@@ -411,8 +417,9 @@ def evaluate_plan_diversity(
     """Evaluate plan diversity against quality gates.
 
     Quality Gate Thresholds (Catalog-grounded):
-      1. Average Jaccard Similarity <= catalog_baseline_mean + max_jaccard_delta (default: baseline + 10.0%p)
-         (Can be overridden explicitly via max_avg_jaccard)
+      1. Average Jaccard Similarity <= catalog_baseline_p95 + 1.0%p by default.
+         An explicitly supplied max_jaccard_delta retains the historical
+         catalog_baseline_mean + delta behavior. max_avg_jaccard is an absolute override.
       2. Effective common block types count (excluding hero & closing) <= max_effective_common (default: 4)
          (Can be overridden explicitly via max_common_blocks)
       3. Identical set pairs count <= catalog baseline P95 by default.
@@ -448,9 +455,18 @@ def evaluate_plan_diversity(
     if max_avg_jaccard is not None:
         threshold_avg_jaccard = max_avg_jaccard
         is_dynamic_jaccard = False
-    else:
+        jaccard_threshold_mode = "absolute_override"
+    elif max_jaccard_delta is not None:
         threshold_avg_jaccard = round(baseline["mean_jaccard"] + max_jaccard_delta, 4)
         is_dynamic_jaccard = True
+        jaccard_threshold_mode = "explicit_delta"
+    else:
+        threshold_avg_jaccard = round(
+            baseline["p95_jaccard"] + DEFAULT_JACCARD_VALIDATION_PADDING,
+            4,
+        )
+        is_dynamic_jaccard = True
+        jaccard_threshold_mode = "baseline_p95_plus_padding"
 
     effective_max_common = max_common_blocks if max_common_blocks is not None else max_effective_common
     if max_identical_pairs is not None:
@@ -473,7 +489,14 @@ def evaluate_plan_diversity(
 
     failures: list[str] = []
     if not gate_avg_jaccard_pass:
-        if is_dynamic_jaccard:
+        if jaccard_threshold_mode == "baseline_p95_plus_padding":
+            failures.append(
+                f"평균 집합 일치도 초과: {avg_jaccard * 100:.1f}% "
+                f"(기준: <= {threshold_avg_jaccard * 100:.1f}%, 기준선 p95 "
+                f"{baseline['p95_jaccard_pct']:.1f}% + 패딩 "
+                f"{DEFAULT_JACCARD_VALIDATION_PADDING * 100:.1f}%p)"
+            )
+        elif jaccard_threshold_mode == "explicit_delta":
             failures.append(
                 f"평균 집합 일치도 초과: {avg_jaccard * 100:.1f}% "
                 f"(기준: <= {threshold_avg_jaccard * 100:.1f}%, 카탈로그 기대치 {baseline['mean_jaccard_pct']:.1f}% + {max_jaccard_delta * 100:.1f}%p)"
@@ -533,6 +556,8 @@ def evaluate_plan_diversity(
             "max_avg_jaccard": threshold_avg_jaccard,
             "max_jaccard_delta": max_jaccard_delta,
             "is_dynamic_jaccard": is_dynamic_jaccard,
+            "jaccard_threshold_mode": jaccard_threshold_mode,
+            "jaccard_validation_padding": DEFAULT_JACCARD_VALIDATION_PADDING,
             "max_effective_common": effective_max_common,
             "max_identical_pairs": effective_max_identical_pairs,
             "is_dynamic_identical_pairs": is_dynamic_identical_pairs,
@@ -546,7 +571,16 @@ def evaluate_plan_diversity(
                 "threshold": threshold_avg_jaccard,
                 "threshold_pct": round(threshold_avg_jaccard * 100, 2),
                 "baseline_mean_pct": baseline["mean_jaccard_pct"],
-                "delta_pct": round(max_jaccard_delta * 100, 2),
+                "baseline_p95_pct": baseline["p95_jaccard_pct"],
+                "delta_pct": (
+                    round(max_jaccard_delta * 100, 2)
+                    if max_jaccard_delta is not None
+                    else None
+                ),
+                "validation_padding_pct": round(
+                    DEFAULT_JACCARD_VALIDATION_PADDING * 100, 2
+                ),
+                "threshold_mode": jaccard_threshold_mode,
                 "pass": gate_avg_jaccard_pass,
             },
             "effective_common_blocks": {
@@ -730,7 +764,14 @@ def print_report(results: dict[str, Any]) -> None:
     p_mark = "[PASS]" if g_pairs["pass"] else "[FAIL]"
 
     print("#### [신규 기준: 카탈로그 도달성 기반 게이트]")
-    if "baseline_mean_pct" in g_jaccard:
+    if g_jaccard.get("threshold_mode") == "baseline_p95_plus_padding":
+        print(
+            f"- {j_mark} **평균 집합 일치도**: {g_jaccard['value_pct']:.1f}% "
+            f"(기준: <= {g_jaccard['threshold_pct']:.1f}% | 기준선 p95 "
+            f"{g_jaccard['baseline_p95_pct']:.1f}% + 패딩 "
+            f"{g_jaccard['validation_padding_pct']:.1f}%p)"
+        )
+    elif g_jaccard.get("threshold_mode") == "explicit_delta":
         print(
             f"- {j_mark} **평균 집합 일치도**: {g_jaccard['value_pct']:.1f}% "
             f"(기준: <= {g_jaccard['threshold_pct']:.1f}% | 카탈로그 기대치 {g_jaccard['baseline_mean_pct']:.1f}% + {g_jaccard['delta_pct']:.1f}%p)"
@@ -822,8 +863,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--max-jaccard-delta",
         type=float,
-        default=DEFAULT_MAX_JACCARD_DELTA,
-        help=f"Allowed delta above catalog baseline mean Jaccard (default: {DEFAULT_MAX_JACCARD_DELTA:.2f} / +10.0%%p).",
+        default=None,
+        help=(
+            "Legacy compatibility override: use baseline mean Jaccard + this delta "
+            "when explicitly supplied (default: baseline P95 + validation padding)."
+        ),
     )
     parser.add_argument(
         "--max-avg-jaccard",

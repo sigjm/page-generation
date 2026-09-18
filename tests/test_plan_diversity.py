@@ -107,6 +107,56 @@ def test_identical_pair_p95_increases_with_batch_size() -> None:
     assert large["p95_identical_pairs"] > small["p95_identical_pairs"]
 
 
+def test_default_average_jaccard_threshold_decreases_with_batch_size() -> None:
+    def records(count: int) -> list[dict[str, Any]]:
+        return [
+            {"case_id": f"c{idx}", "blocks": ["hero", f"block-{idx}", "closing"]}
+            for idx in range(count)
+        ]
+
+    small = cpd.evaluate_plan_diversity(
+        records(6), max_effective_common=4, max_identical_pairs=10000
+    )
+    large = cpd.evaluate_plan_diversity(
+        records(60), max_effective_common=4, max_identical_pairs=10000
+    )
+
+    assert (
+        small["thresholds"]["max_avg_jaccard"]
+        == round(small["catalog_baseline"]["p95_jaccard"] + 0.01, 4)
+    )
+    assert (
+        large["thresholds"]["max_avg_jaccard"]
+        == round(large["catalog_baseline"]["p95_jaccard"] + 0.01, 4)
+    )
+    assert small["thresholds"]["max_avg_jaccard"] > large["thresholds"]["max_avg_jaccard"]
+
+
+def test_explicit_average_jaccard_override_wins_over_dynamic_threshold() -> None:
+    records = [
+        {"case_id": "c1", "blocks": ["hero", "a", "closing"]},
+        {"case_id": "c2", "blocks": ["hero", "b", "closing"]},
+    ]
+
+    result = cpd.evaluate_plan_diversity(records, max_avg_jaccard=0.42)
+
+    assert result["thresholds"]["max_avg_jaccard"] == 0.42
+    assert result["thresholds"]["jaccard_threshold_mode"] == "absolute_override"
+
+
+def test_all_identical_sixty_case_input_still_fails_default_gate() -> None:
+    records = [
+        {"case_id": f"c{idx}", "blocks": ["hero", "statement", "closing"]}
+        for idx in range(60)
+    ]
+
+    result = cpd.evaluate_plan_diversity(records)
+
+    assert result["pass"] is False
+    assert result["gates"]["avg_jaccard"]["pass"] is False
+    assert result["gates"]["identical_pairs"]["pass"] is False
+
+
 def test_compute_catalog_baseline_fallback(tmp_path: Path) -> None:
     non_existent = tmp_path / "does_not_exist.json"
     fallback = cpd.compute_catalog_baseline(catalog_path=non_existent, sample_size=6)
@@ -334,6 +384,7 @@ def test_evaluate_plan_diversity_uses_catalog_baseline() -> None:
     expected_threshold = round(baseline_mean + 0.10, 4)
     assert result["thresholds"]["max_avg_jaccard"] == expected_threshold
     assert result["gates"]["avg_jaccard"]["threshold"] == expected_threshold
+    assert result["thresholds"]["jaccard_threshold_mode"] == "explicit_delta"
     assert result["thresholds"]["max_identical_pairs"] == result["catalog_baseline"]["p95_identical_pairs"]
     assert result["thresholds"]["is_dynamic_identical_pairs"] is True
 
@@ -361,6 +412,8 @@ def test_print_report_shows_expected_and_observed_identical_pairs(capsys: pytest
 
     assert "기대치" in output
     assert "관측" in output
+    assert "기준선 p95" in output
+    assert "패딩 1.0%p" in output
 
 
 def test_parse_args_candidate_pool_size_defaults_to_full_catalog_and_accepts_override(tmp_path: Path) -> None:
@@ -371,8 +424,15 @@ def test_parse_args_candidate_pool_size_defaults_to_full_catalog_and_accepts_ove
 
     assert defaults.candidate_pool_size is None
     assert defaults.max_identical_pairs is None
+    assert defaults.max_jaccard_delta is None
     assert overridden.candidate_pool_size == 15
     assert overridden.max_identical_pairs == 1
+
+
+def test_parse_args_accepts_explicit_legacy_jaccard_delta(tmp_path: Path) -> None:
+    args = cpd.parse_args([str(tmp_path), "--max-jaccard-delta", "0.10"])
+
+    assert args.max_jaccard_delta == 0.10
 
 
 # ==============================================================================
