@@ -4,7 +4,7 @@
 - 대상 저장소: Team3_EcommerceSystemAI (AI Repository)
 - 답변 범위: 인프라팀 요청 1-1 ~ 1-5
 
-> **검증 상태 먼저 말씀드립니다.** 아래는 코드와 이미지 정의가 완성된 상태이고, 애플리케이션 테스트 369개는 Mac 로컬에서 통과했습니다. 다만 **`deploy/sglang/Dockerfile`은 아직 빌드하지 않았고, GPU에서도 한 번도 실행하지 않았습니다.** 이미지 빌드 성공 여부, 두 모델이 L40S 한 장에 실제로 올라가는지, 생성·편집 품질과 처리 시간은 첫 배포에서 확인해야 합니다. 확인 항목은 `docs/operations/ubuntu-deployment.md` 의 검증 체크리스트에 정리돼 있습니다. 아래 자원 수치도 그래서 전부 추정치입니다.
+> **검증 상태 먼저 말씀드립니다.** 2026-09-18 기준 `deploy/sglang/Dockerfile`은 Mac ARM64 호스트에서 `linux/amd64` 에뮬레이션으로 실제 빌드에 성공했습니다. 최종 이미지의 Docker 로컬 가상 크기는 **16.97 GB (15.81 GiB)**이며, 컨테이너 내부의 SGLang import·앱 import·`DRY_RUN`·FastAPI `/health` smoke test도 통과했습니다. 다만 **GPU에서 두 모델을 실제 적재한 적은 아직 없습니다.** 두 모델이 L40S 한 장에 실제로 올라가는지, 생성·편집 품질과 처리 시간, peak VRAM 및 두 SGLang 프로세스의 합산 host RAM은 첫 AWS GPU 배포에서 확인해야 합니다. 확인 항목은 `docs/operations/ubuntu-deployment.md` 의 검증 체크리스트에 정리돼 있습니다. 아래 자원 수치 중 이미지 크기는 빌드 실측이고, 모델·VRAM·host RAM 합산값은 명시한 근거에 따른 계산 또는 미검증 추정치입니다.
 
 ---
 
@@ -47,6 +47,20 @@ L40S (1장)
 | GPU CUDA/Library | SGLang 공식 이미지의 CUDA 런타임 사용 |
 | `linux/amd64` | 대상 플랫폼입니다 |
 
+### 1-2-1. 2026-09-18 이미지 검증 실측
+
+| 항목 | 결과 |
+| --- | --- |
+| 빌드 | `docker buildx build --platform linux/amd64 --load` 성공 |
+| 최종 이미지 | 16.97 GB / 15.81 GiB (`docker image inspect` 기준) |
+| SGLang 베이스 이미지 | 14.74 GB / 13.73 GiB |
+| 이미지에 모델 포함 여부 | 미포함. 모델은 PVC 또는 HF 캐시에 실행 시 준비 |
+| 앱만 기동한 유휴 메모리 | 67.33 MiB (FastAPI `/health` 확인 컨테이너) |
+| SGLang·Torch·Diffusers import | 약 0.97 GiB peak RSS. 모델 가중치 적재 메모리는 아님 |
+| 정적 검증 | 세 Dockerfile `buildx --check` 경고 없음, Compose config 성공 |
+
+이 검증은 NVIDIA GPU가 없는 Mac에서 수행했으므로 실제 CUDA kernel 실행, 모델 적재, peak VRAM 및 생성 요청 E2E를 대체하지 않습니다.
+
 ## 1-3. Health Check
 
 FastAPI 에 두 경로를 새로 추가했습니다.
@@ -70,10 +84,36 @@ FastAPI 에 두 경로를 새로 추가했습니다.
 
 | 항목 | 요청(request) | 상한(limit) | 근거 |
 | --- | --- | --- | --- |
-| CPU | 3 | 6 | 상세페이지 렌더링에 Chromium, 누끼에 rembg(CPU 추론)를 씁니다. 로컬 Apple Silicon 기준선은 1건당 평균 226초였고, 서버 실측은 아직 없습니다 |
-| Memory | 16Gi | 28Gi | SGLang 두 프로세스의 파이썬/토치 상주분, 모델 가중치 로딩 버퍼, Chromium 렌더링 |
+| CPU | 3 | 4 | 상세페이지 렌더링에 Chromium, 누끼에 rembg 를 씁니다. 로컬 Apple Silicon 기준선은 1건당 평균 226초였습니다 |
+| Memory | **24Gi** | 28Gi | 누끼(rembg) 프로세스 상주 **약 12.9 GiB 실측** + SGLang 두 프로세스의 파이썬/토치 상주분 + Chromium 렌더링 |
 
-**둘 다 미검증 추정치입니다.** 첫 배포에서 측정한 뒤 확정하겠습니다. 위 값은 **L40S 1장짜리 노드가 4 vCPU / 32 GiB(예: `g6e.xlarge`) 라도 스케줄되도록** 잡은 값입니다. 노드가 `g6e.2xlarge`(8 vCPU / 64 GiB) 급이면 CPU request 4~6 으로 올리는 편이 렌더링 처리량에 유리합니다. GPU 오프로딩은 끄고 운영하므로(`--dit-cpu-offload false`, `--text-encoder-cpu-offload false`) 호스트 RAM 으로 가중치가 넘어오지는 않습니다.
+> **2026-09-18 갱신.** 앞서 드린 CPU 3/6, Memory 16Gi/28Gi 에서 **Memory request 를
+> 16Gi → 24Gi 로, CPU limit 을 6 → 4 로 고쳤습니다.** 아래 실측 때문입니다.
+
+##### 누끼(rembg) 실측 — 2026-09-18 사내 Ubuntu 서버 컨테이너
+
+8 코어 CPU, 500×500 입력 기준입니다.
+
+| 단계 | 시간 | 프로세스 누적 피크 RSS |
+| --- | ---: | ---: |
+| 세션 로드 | 21.3초 | 2.18 GiB |
+| 누끼 1회차 | 22.5초 | 9.22 GiB |
+| 2회차 | 33.3초 | **12.90 GiB** |
+| 3회차 | 24.1초 | 12.90 GiB |
+| 4회차 | 30.5초 | 12.90 GiB |
+
+**2회차에서 12.90 GiB 로 평탄해집니다.** 누수가 아니라 onnxruntime 아레나가 정상
+상태에 도달한 것이며, 이후 회차에서 더 늘지 않습니다. 다만 **누끼만으로 프로세스가
+약 13 GiB 를 상시 점유**한다는 뜻이라, Memory request 16Gi 로는 스케줄러가 실제
+사용량을 반영하지 못합니다. 같은 서버에서 렌더 도중 컨테이너가 `OOMKilled`(exit 137)
+로 종료된 것을 확인했습니다(가용 13 GiB 환경).
+
+CPU limit 을 6 에서 4 로 낮춘 것은 `g6e.xlarge` 가 **4 vCPU** 라 6 은 도달할 수 없는
+값이기 때문입니다. 오해를 만들지 않도록 노드 용량에 맞췄습니다.
+
+**여전히 미검증인 것**: SGLang 두 서버가 GPU 노드에서 쓰는 **호스트 RAM 은 아직
+측정하지 못했습니다.** 위 24Gi 는 누끼 실측 12.9 GiB 에 나머지를 추정해 얹은 값입니다.
+첫 배포에서 합산 피크를 측정한 뒤 확정하겠습니다. 위 값은 **L40S 1장짜리 노드가 4 vCPU / 32 GiB(예: `g6e.xlarge`) 라도 스케줄되도록** 잡은 값입니다. 노드가 `g6e.2xlarge`(8 vCPU / 64 GiB) 급이면 CPU request 4~6 으로 올리는 편이 렌더링 처리량에 유리합니다. GPU 오프로딩은 끄고 운영하므로(`--dit-cpu-offload false`, `--text-encoder-cpu-offload false`) 호스트 RAM 으로 가중치가 넘어오지는 않습니다.
 
 ### GPU 요구량
 
