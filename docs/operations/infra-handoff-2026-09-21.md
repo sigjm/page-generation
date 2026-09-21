@@ -3,6 +3,62 @@
 - 수신: 「GitHub Actions 변수 등록」 · 「챗봇 LLM 실행 확인 요청」
 - 회신: 생성형 AI 팀 (상세페이지 생성)
 
+<details>
+<summary>받은 요청 원문</summary>
+
+### GitHub Actions 변수 등록
+
+저장소 Settings → Secrets and variables → Actions → Variables에 등록 부탁드립니다.
+
+- AWS_REGION: ap-northeast-2
+- AWS_ROLE_ARN: arn:aws:iam::750240012008:role/jangin-gha-genai-ci
+
+ECR URI:
+
+상세페이지:
+`750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/sglang`
+
+챗봇 API:
+`750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/ollama`
+
+챗봇 LLM:
+`750240012008.dkr.ecr.ap-northeast-2.amazonaws.com/jangin-ai/chatbot-llm`
+
+ECR 저장소 3개 생성 및 최신 main의 chatbot-llm Dockerfile·CI 항목 추가를 확인했습니다.
+
+변수 등록 후 main 기준 이미지 3개의 ECR push 성공 여부 확인 부탁드립니다.
+
+### 챗봇 LLM 실행 확인 요청
+
+추가된 구성을 다음과 같이 확인했습니다.
+
+- 서버: SGLang v0.5.19
+- 모델: mattbucci/gemma-4-12B-AWQ
+- 포트: 30000
+- served model name: gemma4-12b-awq
+
+네이티브에서는 T4의 같은 Pod 안에 API와 LLM을 별도 컨테이너로 연결합니다.
+GPU 1개는 LLM 컨테이너에만 할당합니다.
+
+API 연결 설정:
+- LLM_BACKEND=sglang
+- SGLANG_HOST=http://127.0.0.1:30000
+- LLM_MODEL=gemma4-12b-awq
+
+다음 사항 확인 부탁드립니다.
+
+1. 모델 카드에 명시된 SGLang 추가 패치가 v0.5.19에 포함되어 있는지
+   - 미포함이라면 필요한 이미지 수정 또는 호환 모델 선정
+2. 사용할 모델의 고정 revision(commit SHA)
+   - 현재 Dockerfile 기본값은 main입니다.
+3. 모델 다운로드에 별도 인증이 필요한지
+
+현재 Dockerfile은 모델을 이미지에 포함하지 않습니다.
+기존 S3 → 모델 볼륨 방식에 맞춰 네이티브에서 MODEL_PATH를 연결할 예정입니다.
+모델 revision 확정 후 해당 버전의 모델 파일을 준비해야 합니다.
+
+</details>
+
 ## 요약
 
 | 요청 | 상태 |
