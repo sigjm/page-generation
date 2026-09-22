@@ -130,7 +130,7 @@ CPU limit 을 6 에서 4 로 낮춘 것은 `g6e.xlarge` 가 **4 vCPU** 라 6 은
 
 | 환경변수 | 용도 | 필수 | staging Parameter Store 경로 | 등록 주체 |
 | --- | --- | --- | --- | --- |
-| `AI_INTERNAL_AUTH_TOKEN` | `/internal/v1/ai/*` 호출 인증 토큰 | 예 | `/staging/ai/internal-auth-token` | **생성형 AI 팀** |
+| `AI_INTERNAL_AUTH_TOKEN` | `/internal/v1/ai/*` 호출 인증 토큰 | 예 | `/staging/ai/internal-auth-token` | **생성형 AI 팀 — 등록 완료** (2026-09-22, Version 1) |
 | `BACKEND_AUTH_TOKEN` | BE 콜백용 Bearer 토큰 | 예 | `/staging/backend/backend-auth-token` | **BE 팀** (우리는 읽기만) |
 | `HF_TOKEN` | Hugging Face 토큰 | 현재 모델은 비게이트라 불필요. 게이트 모델로 바꾸면 필수 | 미등록 | — |
 
@@ -143,6 +143,18 @@ AI  --(BACKEND_AUTH_TOKEN)------>  BE      Authorization: Bearer 헤더
 
 `AI_INTERNAL_AUTH_TOKEN` 은 **형식 제약이 없습니다.** 임의 문자열이며
 `hmac.compare_digest` 로 상수 시간 비교합니다(`app.py:90-99`).
+
+#### staging Parameter Store 등록 현황 (2026-09-22)
+
+| 파라미터 | Type | KMS 키 | 상태 |
+| --- | --- | --- | --- |
+| `/staging/ai/internal-auth-token` | `SecureString` | `alias/jangin-staging-app` | **등록 완료** (Version 1) |
+| `/staging/backend/backend-auth-token` | — | — | **BE 미등록** (2026-09-22 확인) |
+| `/staging/ai/vector-db/password` | — | — | 챗봇 팀 소관 |
+| `/staging/ai/vector-db/postgres-password` | — | — | 챗봇 팀 소관 |
+
+등록 시점에 `/staging/ai` 는 비어 있었으므로 덮어쓴 값이 없습니다. 리전은
+`ap-northeast-2` 이고, 값을 바꾸면 파드 재시작이 필요합니다.
 
 > **진단 참고**: 이 환경변수가 주입되지 않으면 `/internal/v1/ai/*` 가 **401 이 아니라
 > 503** (`AI internal integration is unavailable`)을 반환합니다. 401 은 값이 틀린
