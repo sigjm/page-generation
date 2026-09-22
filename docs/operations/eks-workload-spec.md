@@ -128,11 +128,25 @@ CPU limit 을 6 에서 4 로 낮춘 것은 `g6e.xlarge` 가 **4 vCPU** 라 6 은
 
 **Secret 으로 주입 (값은 전달하지 않습니다)**
 
-| 이름 | 용도 | 필수 |
-| --- | --- | --- |
-| `BACKEND_AUTH_TOKEN` | BE 호출용 Bearer 토큰 | 예 |
-| `AI_INTERNAL_AUTH_TOKEN` | `/internal/v1/ai/*` 호출 인증 토큰 | 예 |
-| `HF_TOKEN` | Hugging Face 토큰 | 현재 모델은 비게이트라 불필요. 게이트 모델로 바꾸면 필수 |
+| 환경변수 | 용도 | 필수 | staging Parameter Store 경로 | 등록 주체 |
+| --- | --- | --- | --- | --- |
+| `AI_INTERNAL_AUTH_TOKEN` | `/internal/v1/ai/*` 호출 인증 토큰 | 예 | `/staging/ai/internal-auth-token` | **생성형 AI 팀** |
+| `BACKEND_AUTH_TOKEN` | BE 콜백용 Bearer 토큰 | 예 | `/staging/backend/backend-auth-token` | **BE 팀** (우리는 읽기만) |
+| `HF_TOKEN` | Hugging Face 토큰 | 현재 모델은 비게이트라 불필요. 게이트 모델로 바꾸면 필수 | 미등록 | — |
+
+두 토큰은 **서로 다른 값**입니다. 방향이 반대이기 때문입니다.
+
+```
+BE  --(AI_INTERNAL_AUTH_TOKEN)-->  AI      X-AI-Internal-Token 헤더
+AI  --(BACKEND_AUTH_TOKEN)------>  BE      Authorization: Bearer 헤더
+```
+
+`AI_INTERNAL_AUTH_TOKEN` 은 **형식 제약이 없습니다.** 임의 문자열이며
+`hmac.compare_digest` 로 상수 시간 비교합니다(`app.py:90-99`).
+
+> **진단 참고**: 이 환경변수가 주입되지 않으면 `/internal/v1/ai/*` 가 **401 이 아니라
+> 503** (`AI internal integration is unavailable`)을 반환합니다. 401 은 값이 틀린
+> 경우입니다. 파라미터 연결이 빠졌을 때 헷갈리지 않도록 구분해 두었습니다.
 
 **ConfigMap 등으로 주입**
 
