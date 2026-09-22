@@ -7,7 +7,7 @@
 
 | 항목 | 상태 |
 | --- | --- |
-| 1. workflow 변경 (CodeBuild·ECR 이름·실패 처리) | **완료** — PR 준비 |
+| 1. workflow 변경 (CodeBuild·ECR 이름·실패 처리) | **완료** — PR #32 머지. CodeBuild 디스크 해소 확인. **ECR push 는 IAM 리소스 목록 때문에 2/3 실패** |
 | 2. 로컬 모델 검사 수정 | **완료** — 지적이 맞았습니다. 기존 코드면 파드가 못 떴습니다 |
 | 3. 모델 S3 업로드 | **막힘** — `AI-Dev` 에 `s3:PutObject` 가 **명시적으로 거부**돼 있습니다 |
 | 4. GPU 공동 검증 | **대기** — GPU 가 준비되면 진행 |
@@ -94,11 +94,6 @@ arn:aws:ecr:ap-northeast-2:750240012008:repository/jangin-ai/chatbot-api
 (옛 이름 `jangin-ai/sglang` · `jangin-ai/ollama` 는 더 이상 쓰지 않습니다.)
 
 반영해 주시면 main 을 재실행해 push 성공을 확인하고 Actions URL 을 전달드리겠습니다.
-
-> **참고**: 이전 실행에서 상세페이지가 러너 디스크로 막혔던 기록입니다.
-> `page-generation requires at least 35 GiB free, but the runner has 14 GiB`
-> CodeBuild `BUILD_GENERAL1_LARGE` 면 해소될 것으로 봅니다. 실제 성공 여부는
-> 새 실행으로 확인해 회신드립니다.
 
 ---
 
