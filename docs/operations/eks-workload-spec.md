@@ -146,15 +146,23 @@ AI  --(BACKEND_AUTH_TOKEN)------>  BE      Authorization: Bearer 헤더
 
 #### staging Parameter Store 등록 현황 (2026-09-22)
 
-| 파라미터 | Type | KMS 키 | 상태 |
-| --- | --- | --- | --- |
-| `/staging/ai/internal-auth-token` | `SecureString` | `alias/jangin-staging-app` | **등록 완료** (Version 1) |
-| `/staging/backend/backend-auth-token` | — | — | **BE 미등록** (2026-09-22 확인) |
-| `/staging/ai/vector-db/password` | — | — | 챗봇 팀 소관 |
-| `/staging/ai/vector-db/postgres-password` | — | — | 챗봇 팀 소관 |
+| 파라미터 | Type | KMS 키 | 상태 | 등록 |
+| --- | --- | --- | --- | --- |
+| `/staging/ai/internal-auth-token` | `SecureString` | `alias/jangin-staging-app` | **등록 완료** (Version 1) | 생성형 AI 팀 |
+| `/staging/ai/vector-db/password` | `SecureString` | `alias/jangin-staging-app` | **등록 완료** (Version 1) | 생성형 AI 팀이 **대행** (원 소관: 챗봇 팀) |
+| `/staging/ai/vector-db/postgres-password` | `SecureString` | `alias/jangin-staging-app` | **등록 완료** (Version 1) | 생성형 AI 팀이 **대행** (원 소관: 챗봇 팀) |
+| `/staging/backend/backend-auth-token` | — | — | **BE 미등록** (2026-09-22 확인) | BE 팀 |
 
 등록 시점에 `/staging/ai` 는 비어 있었으므로 덮어쓴 값이 없습니다. 리전은
-`ap-northeast-2` 이고, 값을 바꾸면 파드 재시작이 필요합니다.
+`ap-northeast-2` 이고, 값을 바꾸면 파드 재시작이 필요합니다. 값은 생성과 동시에
+`put-parameter` 로 전달해 화면·로그에 남기지 않았고, 문자는 URL-safe 라 접속
+문자열에서 이스케이프가 필요 없습니다.
+
+> **벡터DB 두 건은 챗봇 팀이 확인해야 할 전제가 있습니다.** 벡터DB 가 **이미 다른
+> 비밀번호로 프로비저닝되어 있다면** 파라미터만 바꿔도 DB 의 실제 비밀번호는 바뀌지
+> 않습니다. 아직 생성 전이라면 문제가 없습니다. `chat_bot/env.example` 이
+> `DB_PASSWORD_FILE=/mnt/secrets-store/password` 로 파라미터를 마운트해 읽으므로
+> 하드코딩된 값과 충돌하지는 않습니다.
 
 > **진단 참고**: 이 환경변수가 주입되지 않으면 `/internal/v1/ai/*` 가 **401 이 아니라
 > 503** (`AI internal integration is unavailable`)을 반환합니다. 401 은 값이 틀린
