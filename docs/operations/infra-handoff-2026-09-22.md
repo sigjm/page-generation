@@ -42,10 +42,58 @@ ECR 저장소 이름을 바꿨습니다.
 
 YAML 파싱과 세 job 구성(`test`·`docker-validate`·`publish`)을 확인했습니다.
 
-### 회신드릴 것
+### 실행 결과 — CodeBuild 는 해결, IAM 정책 하나가 남았습니다
 
-**PR 을 올린 뒤 성공한 Actions URL 을 전달드리겠습니다.** 말씀대로 기존 실행
-재시도로는 workflow 변경이 적용되지 않으므로 새 실행으로 확인합니다.
+PR #32 을 머지하고 main 에서 새로 실행했습니다.
+
+**PR 실행** (run `35709810293`) — 전부 성공
+
+| 잡 | 결과 | 소요 |
+| --- | --- | ---: |
+| Docker validation **page-generation** | **성공** | 7분 10초 |
+| Docker validation chatbot-llm | 성공 | 31초 |
+| Docker validation chatbot-api | 성공 | — |
+| Test ×2 | 성공 | — |
+
+실제로 CodeBuild 에서 돌았습니다. 로그 경로가
+`/codebuild/output/src.../actions-runner/_work/GenAI/GenAI` 이고 디스크가
+`Max Used Space 93.13GiB` · `Min Free Space 59.6GiB` 입니다.
+**지난번 `requires at least 35 GiB free, but the runner has 14 GiB` 로 막히던
+잡이 통과했습니다.** 용량 부족 시 실패 처리도 함께 들어가 있으므로 건너뛴 것이
+아닙니다.
+
+**main 실행** (run `35710985870`) — 3개 중 1개 성공
+
+| 이미지 | 결과 | 원인 |
+| --- | --- | --- |
+| `jangin-ai/chatbot-llm` | **성공** | 이름이 바뀌지 않아 정책에 이미 있음 |
+| `jangin-ai/page-generation` | 실패 | IAM 정책에 새 이름 미반영 |
+| `jangin-ai/chatbot-api` | 실패 | 〃 |
+
+```
+AccessDeniedException: User: arn:aws:sts::750240012008:assumed-role/
+jangin-gha-genai-ci/GitHubActions is not authorized to perform:
+ecr:DescribeImages on resource:
+arn:aws:ecr:ap-northeast-2:750240012008:repository/jangin-ai/page-generation
+because no identity-based policy allows the ecr:DescribeImages action
+```
+
+**OIDC 신뢰 정책은 해결됐습니다.** AssumeRole 이 통과해 역할을 실제로 맡았고,
+`chatbot-llm` 은 push 까지 성공했습니다. 남은 것은 **그 역할의 권한 정책에 새
+저장소 ARN 이 없는 것**뿐입니다. ECR 저장소 3개는 모두 생성돼 있는 것을
+확인했습니다.
+
+**요청드립니다**: `jangin-gha-genai-ci` 역할 정책의 리소스에 새 이름을 추가해
+주세요. 저희 쪽에서 더 할 일은 없습니다.
+
+```
+arn:aws:ecr:ap-northeast-2:750240012008:repository/jangin-ai/page-generation
+arn:aws:ecr:ap-northeast-2:750240012008:repository/jangin-ai/chatbot-api
+```
+
+(옛 이름 `jangin-ai/sglang` · `jangin-ai/ollama` 는 더 이상 쓰지 않습니다.)
+
+반영해 주시면 main 을 재실행해 push 성공을 확인하고 Actions URL 을 전달드리겠습니다.
 
 > **참고**: 이전 실행에서 상세페이지가 러너 디스크로 막혔던 기록입니다.
 > `page-generation requires at least 35 GiB free, but the runner has 14 GiB`
