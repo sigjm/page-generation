@@ -6,6 +6,9 @@
 > 서버 추론은 SGLang 단일 엔진으로 텍스트 서버(`30000`)와 이미지 확산 서버(`30001`)를 띄우며, Mac 로컬 개발은 MLX Serve를 사용합니다.
 > 서버 GPU에서는 아직 한 번도 실행하지 않았습니다. `hero`는 촬영 원본을 그대로 쓰는 `source_original`, 누끼는 rembg 경로를 사용하며 생성 사진의 별도 참고용 표시는 제거되었습니다.
 
+> 2026-09-23 추가: `gallery` 블록의 사진은 모델이 아니라 **코드가 확정합니다.** 생성 디테일컷이 있으면 `page_plan`의 `photo_ids`를 무시하고 `detail`~`detail-05`로 덮어쓰며, PNG 렌더러와 `react_document` 빌더가 같은 규칙을 씁니다.
+> 따라서 갤러리에 실제로 들어간 사진은 `page_plan`이 아니라 `react_document`의 `imageId` 참조로 판단합니다.
+
 ## API
 
 - [`api/ai-dto-contract.md`](api/ai-dto-contract.md): BE↔AI 방향별 DTO와 이미지 provenance·메타데이터 전달 계약
