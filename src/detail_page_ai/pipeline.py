@@ -93,7 +93,7 @@ def _one_job_at_a_time(method):
         with self._model_lock:
             waited = time.monotonic() - started
             if waited >= 1:
-                logger.info("job %s waited %.1fs for the previous job", job_id, waited)
+                logger.warning("job %s waited %.1fs for the previous job", job_id, waited)
             return method(self, *args, **kwargs)
 
     return wrapper
