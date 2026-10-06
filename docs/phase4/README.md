@@ -50,6 +50,7 @@
 | [`operations/aws-deployment.md`](operations/aws-deployment.md) | 로컬 MLX 파이프라인을 AWS 환경으로 이관하고 1건 end-to-end 품질 게이트를 확인하는 운영 가이드 | 상시 |
 | [`operations/aws-migration-checklist.md`](operations/aws-migration-checklist.md) | AWS 이관에 필요한 준비물·차단 조건·확인 방법을 정리한 실무 체크리스트 | 상시 |
 | [`operations/eks-workload-spec.md`](operations/eks-workload-spec.md) | EKS 인프라팀 요청에 대한 AI 저장소 workload·자원·검증 상태 답변 | 상시 |
+| [`operations/gpu-sequential-model-loading-design.md`](operations/gpu-sequential-model-loading-design.md) | 누끼 CPU 실행 후에도 GPU 오류가 나면 적용할, 이미지 서버를 렌더 때만 깨우는 순차 적재 설계안 | 시점 |
 | [`operations/local-llm.md`](operations/local-llm.md) | Mac 로컬 MLX Serve 기반 상세페이지 LLM 실행 경로와 출력 규칙 | 상시 |
 | [`operations/qa-checklist.md`](operations/qa-checklist.md) | 상세페이지 한 건마다 입력·분석·구성·사진·렌더·전달·안전성을 자동/육안으로 확인하는 QA 체크리스트 | 상시 |
 | [`operations/security-response-2026-09-30.md`](operations/security-response-2026-09-30.md) | 사이버 보안팀 보안조치요구서(SAST F-1·F-3·F-4·F-7, SCA 21건)에 대한 확인 근거·조치·재검 결과 회신 | 시점 |
