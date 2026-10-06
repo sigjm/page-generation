@@ -41,6 +41,7 @@ docs/
 | 문서 | 내용 | 성격 |
 | --- | --- | --- |
 | [`common/ai-architecture-and-safety.md`](common/ai-architecture-and-safety.md) | 로컬·서버 모델 경계, 데이터 흐름, 평가 지표와 안전성 정책을 합친 운영 기준 | 상시 |
+| [`common/system-architecture.md`](common/system-architecture.md) | 지금 돌아가는 구성 — 시스템 구성 · 요청 순서 · 단계와 상태 · 전달 보장 · 배포를 그림 다섯 장으로 정리 | 상시 |
 | [`common/deliverables-audit.md`](common/deliverables-audit.md) | 산출물의 충족 여부·수정 사항·남은 작업 점검 결과 | 시점 |
 | [`common/deliverables-review-2026-09-16.md`](common/deliverables-review-2026-09-16.md) | 2026-09-16 산출물 검토 시점 기록 | 시점 |
 

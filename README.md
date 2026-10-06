@@ -20,20 +20,21 @@
 ## 📑 목차
 
 1. [한눈에 보기](#overview)
-2. [처리 흐름](#flow)
-3. [사진 처리 정책](#photos)
-4. [문구 안전 정책](#copy-safety)
-5. [레이아웃과 `react_document`](#layout)
-6. [API](#api)
-7. [영속성과 전달 보장](#persistence)
-8. [모델과 런타임](#runtime)
-9. [실행 방법](#getting-started)
-10. [설정값](#configuration)
-11. [운영과 관측](#operations)
-12. [테스트와 평가](#quality)
-13. [프로젝트 구조](#structure)
-14. [문서 안내](#docs)
-15. [알려진 제한](#limits)
+2. [시스템 구성](#architecture)
+3. [처리 흐름](#flow)
+4. [사진 처리 정책](#photos)
+5. [문구 안전 정책](#copy-safety)
+6. [레이아웃과 `react_document`](#layout)
+7. [API](#api)
+8. [영속성과 전달 보장](#persistence)
+9. [모델과 런타임](#runtime)
+10. [실행 방법](#getting-started)
+11. [설정값](#configuration)
+12. [운영과 관측](#operations)
+13. [테스트와 평가](#quality)
+14. [프로젝트 구조](#structure)
+15. [문서 안내](#docs)
+16. [알려진 제한](#limits)
 
 <br>
 
@@ -55,6 +56,22 @@
 1. **원본 제품 사진은 다시 그리지 않습니다.** 대표 사진은 촬영 원본 그대로 쓰고, 생성 모델은 연출·보조 컷에만 씁니다.
 2. **없는 사실을 지어내지 않습니다.** 사진에서 보이지 않고 장인이 쓰지도 않은 내용은 고객용 문구에 넣지 않습니다.
 3. **장인이 승인한 것만 최종 결과가 됩니다.** 초안 단계에서는 PNG를 만들지 않고, 승인 때 한 번만 렌더합니다.
+
+<br>
+
+<a id="architecture"></a>
+
+## 🏗️ 시스템 구성
+
+<p align="center">
+  <img src="docs/common/architecture/01-system-overview.png" width="920" alt="시스템 구성 — BE가 AI API를 호출하고, 파이프라인이 모델 서버 · 누끼 · PNG 렌더러를 차례로 쓴다" />
+</p>
+
+- 장인 화면은 BE만 호출하고, AI는 **BE의 내부 호출만** 받습니다.
+- AI 컨테이너 하나에 API · 텍스트 서버 · 이미지 서버가 함께 뜨고, GPU 한 장을 두 모델이 나눠 씁니다.
+- 작업은 한 번에 하나씩 처리하고, 결과는 디스크에 먼저 저장한 뒤 BE로 보냅니다.
+
+요청 순서, 단계별 상태, 전달 보장, 배포 구성까지 그림 다섯 장으로 정리한 문서는 [`system-architecture.md`](docs/common/system-architecture.md)입니다.
 
 <br>
 
