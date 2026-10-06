@@ -54,6 +54,7 @@ docs/
 | [`internal/be-ai-integration-negotiation.md`](internal/be-ai-integration-negotiation.md) | BE·AI·챗봇 사이의 연동 불일치, 생성 이미지·경로·인증 합의 쟁점과 제안 | 보관 |
 | [`internal/be-request-2026-09-17.md`](internal/be-request-2026-09-17.md) | 세 서비스 실측에서 찾은 BE↔AI 통신·비동기·인증·AWS 배포 문제와 요청 목록 | 보관 |
 | [`internal/orchestration.md`](internal/orchestration.md) | cmux 기반 Claude Code 오케스트레이터와 CLI 워커의 멀티 에이전트 운영 규약 | 상시 |
+| [`internal/orchestration-usage.md`](internal/orchestration-usage.md) | 오케스트레이션 활용 기록 — 브리프 188건의 배정 방식, 기간별 사용, 대표 사례, 겪은 문제와 바꾼 규칙 | 시점 |
 | [`internal/plans/2026-08-26-image-detail-page-ai-fe-be.md`](internal/plans/2026-08-26-image-detail-page-ai-fe-be.md) | 제품 전체 이미지 생성 중심 초기 AI-FE/AI-BE 구현 계획 보관본 | 보관 |
 | [`internal/plans/2026-08-27-source-preserving-detail-page-implementation.md`](internal/plans/2026-08-27-source-preserving-detail-page-implementation.md) | 원본 제품 보존형 상세페이지 구현 계획 | 시점 |
 | [`internal/plans/2026-08-31-detail-page-flow-hardening.md`](internal/plans/2026-08-31-detail-page-flow-hardening.md) | draft-to-PNG 흐름과 승인 전후 renderer를 hardening하는 구현 계획 | 시점 |
