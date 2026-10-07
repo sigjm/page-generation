@@ -38,7 +38,7 @@ MLX Serve가 `http://127.0.0.1:11234`에서 실행 중이면 다음 명령만으
 
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/runtime/run_local_detail_page.py \
-  --image assets/samples/images-2.jpeg \
+  --image data/evaluation/cma_real_v1/images/cma-101636.jpg \
   --output-dir generated/runs/images_2_qwen27b_flux2 \
   --text-provider mlx \
   --text-url http://127.0.0.1:11234 \
@@ -63,7 +63,7 @@ Ollama를 별도 검증 경로로 사용할 때만 `--text-provider ollama`,
 
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/runtime/run_local_detail_page.py \
-  --image assets/samples/najeon-box.jpeg \
+  --image data/evaluation/cma_real_v1/images/cma-101636.jpg \
   --output-dir generated/samples/local_najeon_box \
   --text-provider ollama \
   --text-url http://127.0.0.1:11434 \
@@ -100,7 +100,7 @@ BE asset manifest와 연결한다. 서버가 허용 tag·부모/자식 관계·�
 
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/runtime/run_local_detail_page.py \
-  --image assets/samples/najeon-box.jpeg \
+  --image data/evaluation/cma_real_v1/images/cma-101636.jpg \
   --no-product-photos
 ```
 

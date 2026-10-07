@@ -61,7 +61,7 @@ docs/
 | [`internal/plans/2026-08-31-detail-page-flow-hardening.md`](internal/plans/2026-08-31-detail-page-flow-hardening.md) | draft-to-PNG 흐름과 승인 전후 renderer를 hardening하는 구현 계획 | 시점 |
 | [`internal/plans/2026-08-31-fe-be-ai-be-fe-implementation.md`](internal/plans/2026-08-31-fe-be-ai-be-fe-implementation.md) | Product BE 게이트웨이·multipart·상태 계약 구현 계획 | 시점 |
 | [`internal/plans/2026-09-10-round-01-05-documentation.md`](internal/plans/2026-09-10-round-01-05-documentation.md) | Round 01~05 실험 산출물 문서화와 색인 복원 계획 | 시점 |
-| [`internal/product-photography.md`](internal/product-photography.md) | 스튜디오·라이프스타일·packshot 등 제품 사진 제작 기준 | 보관 |
+| [`internal/product-photography.md`](internal/product-photography.md) | 제품 사진 연출 참고 자료의 출처 안내 (원문은 외부 저장소) | 보관 |
 | [`internal/refactoring/cleanup-diagnosis-agy.md`](internal/refactoring/cleanup-diagnosis-agy.md) | 코드 정리 후보를 실제 문제 유발 여부로 판정한 교차 진단 보고서 | 시점 |
 | [`internal/refactoring/cleanup-diagnosis-codex.md`](internal/refactoring/cleanup-diagnosis-codex.md) | 코드 정리 필요성·유지비·호출 관계를 교차 검증한 진단 | 시점 |
 | [`internal/refactoring/diagnosis-agy.md`](internal/refactoring/diagnosis-agy.md) | src 패키지 책임 경계와 규모를 점검한 구조 리팩터링 진단서 | 시점 |

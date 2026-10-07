@@ -7,9 +7,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_project_assets_docs_and_generated_outputs_are_grouped():
     expected_paths = [
-        ROOT / "assets/samples/najeon-box.jpeg",
-        ROOT / "assets/samples/product-photos",
-        ROOT / "assets/references/detail-page-guide",
         ROOT / "assets/references/detail-page-template.png",
         ROOT / "assets/workflows/flux_kontext_dev_api.json",
         ROOT / "scripts/browser/test_detail_page_layout.mjs",

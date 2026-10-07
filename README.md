@@ -187,7 +187,7 @@ BE → AI  승인된 draft + 원본 사진
 - **블록 종류(13):** `hero`, `statement`, `feature_grid`, `detail_split`, `wide_image`, `gallery`, `usage_scene`, `scale_reference`, `palette`, `recommendation`, `info_table`, `notice`, `closing`
 - **블록 변형(8):** `paper`, `light`, `sand`, `dark`, `image-left`, `image-right`, `full-bleed`, `compact`
 
-스타일은 `assets/references/detail-page-guide/`의 색 · 타이포 · 이미지 무드 가이드를 `src/detail_page_ai/reference_guide.py`에 버전 고정해 반영합니다. 가이드는 방향으로만 쓰고, 샘플 문구 · 상품명 · 화면을 복사하지 않습니다.
+스타일은 팀 디자인 가이드의 색 · 타이포 · 이미지 무드 규칙을 `src/detail_page_ai/reference_guide.py`에 버전 고정해 반영합니다. 가이드 원본은 이 저장소에 넣지 않았습니다. 가이드는 방향으로만 쓰고, 샘플 문구 · 상품명 · 화면을 복사하지 않습니다.
 
 ### `react_document`
 
@@ -370,11 +370,11 @@ npx playwright install chromium
 serve-ai          # http://127.0.0.1:8000/docs
 ```
 
-서버 없이 사진 한 장으로 전체 파이프라인을 돌려 볼 수도 있습니다. 결과 폴더에 `detail_page.png`, `sections/`, `photos/`, `react_document.json`이 생깁니다.
+서버 없이 사진 한 장으로 전체 파이프라인을 돌려 볼 수도 있습니다. 결과 폴더에 `detail_page.png`, `sections/`, `photos/`, `react_document.json`이 생깁니다. 사진은 직접 준비하거나, 저장소에 든 CC0 사진(`data/evaluation/cma_real_v1/images/`)을 씁니다.
 
 ```bash
 PYTHONPATH=src python scripts/runtime/run_local_detail_page.py \
-  --image assets/samples/najeon-box.jpeg \
+  --image path/to/product.jpg \
   --product-name "나전칠기 보석함" \
   --making-method "자개를 한 조각씩 붙이고 옻칠을 여러 번 올렸습니다." \
   --care-guide "마른 천으로 닦고 직사광선을 피해 보관하세요." \
@@ -397,8 +397,8 @@ curl http://127.0.0.1:8000/health/ready
 
 ```bash
 PYTHONPATH=src python scripts/runtime/build_detail_page_html.py \
-  --image assets/samples/najeon-box.jpeg \
-  --profile generated/samples/najeon_box_profile.json \
+  --image path/to/product.jpg \
+  --profile generated/samples/product_profile.json \
   --output generated/verified/source_safe_detail_page.html
 
 npm run render:detail-page -- \
@@ -549,7 +549,7 @@ page_generation/
 ├── deploy/
 │   ├── docker-compose.yml         # 단일 호스트 3서비스 구성
 │   └── sglang/                    # EKS용 단일 컨테이너 이미지 (Dockerfile · entrypoint.sh)
-├── assets/                        # 입력 샘플 · 디자인 가이드 · 레퍼런스
+├── assets/                        # 샘플 react_document · 레이아웃 카탈로그 · 워크플로
 ├── data/evaluation/               # 평가 데이터셋
 ├── tests/                         # 단위 · 계약 테스트
 ├── docs/                          # Phase 1~4 산출물 · 계약 · 운영 문서
@@ -589,3 +589,4 @@ page_generation/
 - **FLUX 라이선스:** 이미지 모델 원본이 비상업 라이선스(FLUX NCL) 계열이라 상업 이용 범위를 확인해야 합니다.
 - **메모리:** 렌더 중 컨테이너 RAM이 약 22GiB까지 오르므로 Pod 메모리 한도를 그 이상으로 둡니다.
 - **지원 범위:** `locale`은 `ko-KR`, `template_id`는 `default-long-detail-page`만 받습니다.
+- **저장소에 없는 자료:** 이용 권리를 확인하지 못한 샘플 상품 사진, 그 사진으로 만든 평가 입력과 렌더 결과, 팀 디자인 가이드 원본은 넣지 않았습니다. `scripts/dataset/build_detail_page_eval_dataset.py`, `tests/build_detail_page_visual_fixtures.py`처럼 이 사진을 읽는 스크립트는 사진을 따로 준비해야 돌아갑니다. 문서에 남은 `assets/samples/…` 경로는 당시 기록입니다.
